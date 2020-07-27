@@ -128,7 +128,7 @@ class User_model extends CI_Emerald_Model {
     public function set_rights(int $rights)
     {
         $this->rights = $rights;
-        return $this->save('rights', $rights);
+        return $this->save('rights', $rights); // Database error: Out of range value for column 'rights' at row 1 errno: 1264 - сделал INT
     }
 
     /**
@@ -255,7 +255,7 @@ class User_model extends CI_Emerald_Model {
 
     /**
      * @return self[]
-     * @throws Exception
+     * @throws Exception - нету ошибки в теле метода
      */
     public static function get_all()
     {
@@ -374,6 +374,21 @@ class User_model extends CI_Emerald_Model {
         }
     }
 
-
+    /**
+     * 
+     * @param string $email
+     * @param string $password
+     * @return int
+     */
+    public static function get_id_by_email_and_password(string $email, string $password): int
+    {
+        $user_data = App::get_ci()->s->from(self::CLASS_TABLE)->where(['email' => $email, 'password' => $password])->select('id')->one();
+        
+        if ($user_data && $user_data['id'] > 0) {
+            return $user_data['id'];
+        }
+        
+        return 0;
+    }
 
 }

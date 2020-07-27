@@ -6,7 +6,7 @@
  * Date: 27.01.2020
  * Time: 10:10
  */
-class Comment_model extends CI_Emerald_Model
+class Comment_model extends CI_Emerald_Model implements Likeable_interface
 {
     const CLASS_TABLE = 'comment';
 
@@ -126,7 +126,24 @@ class Comment_model extends CI_Emerald_Model
         return $this->save('time_updated', $time_updated);
     }
 
-    // generated
+    /**
+     * @return int
+     */
+    public function get_parent_id(): int
+    {
+        return $this->parent_id;
+    }
+
+    /**
+     * @param int $parent_id
+     *
+     * @return bool
+     */
+    public function set_parent_id(int $parent_id)
+    {
+        $this->assing_id = $parent_id;
+        return $this->save('parent_id', $parent_id);
+    }
 
     /**
      * @return mixed
@@ -134,6 +151,25 @@ class Comment_model extends CI_Emerald_Model
     public function get_likes()
     {
         return $this->likes;
+    }
+
+    /**
+     * @param int $likes
+     * 
+     * @return bool
+     */
+    public function set_likes(int $likes)
+    {
+        $this->likes = $likes;
+        return $this->save('likes', $likes);
+    }
+
+    /**
+     * @return string
+     */
+    public function get_entity()
+    {
+        return self::CLASS_TABLE;
     }
 
     /**
@@ -180,6 +216,9 @@ class Comment_model extends CI_Emerald_Model
 
     public static function create(array $data)
     {
+        if (!empty($data['text'])) {
+            $data['text'] = App::get_ci()->security->xss_clean($data['text']);
+        }
         App::get_ci()->s->from(self::CLASS_TABLE)->insert($data)->execute();
         return new static(App::get_ci()->s->get_insert_id());
     }
@@ -196,7 +235,7 @@ class Comment_model extends CI_Emerald_Model
      * @return self[]
      * @throws Exception
      */
-    public static function get_all_by_assign_id(int $assting_id)
+    public static function get_all_by_assign_id(int $assting_id) // $assting_id ?
     {
 
         $data = App::get_ci()->s->from(self::CLASS_TABLE)->where(['assign_id' => $assting_id])->orderBy('time_created','ASC')->many();
@@ -238,11 +277,12 @@ class Comment_model extends CI_Emerald_Model
             $o = new stdClass();
 
             $o->id = $d->get_id();
+            $o->parent_id = $d->get_parent_id();
             $o->text = $d->get_text();
 
             $o->user = User_model::preparation($d->get_user(),'main_page');
 
-            $o->likes = rand(0, 25);
+            $o->likes = $d->get_likes();
 
             $o->time_created = $d->get_time_created();
             $o->time_updated = $d->get_time_updated();

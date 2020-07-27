@@ -6,7 +6,7 @@
  * Date: 27.01.2020
  * Time: 10:10
  */
-class Post_model extends CI_Emerald_Model
+class Post_model extends CI_Emerald_Model implements Likeable_interface
 {
     const CLASS_TABLE = 'post';
 
@@ -125,14 +125,37 @@ class Post_model extends CI_Emerald_Model
         return $this->save('time_updated', $time_updated);
     }
 
-    // generated
-
     /**
-     * @return mixed
+     * @return int
      */
     public function get_likes()
     {
         return $this->likes;
+    }
+/*
+был непонятный комментарий «generated» (в итоге я кажется понял, что он значит, но только по коду)
+@return mixed и название метода — вводит в заблуждение
+я бы сделал название get_cnt_likes/get_num_likes
+а то likes больше похоже на список этих лайков (по аналогии с comments)
+*/
+
+    /**
+     * @param int $likes
+     * 
+     * @return bool
+     */
+    public function set_likes(int $likes)
+    {
+        $this->likes = $likes;
+        return $this->save('likes', $likes);
+    }
+
+    /**
+     * @return string
+     */
+    public function get_entity()
+    {
+        return self::CLASS_TABLE;
     }
 
     /**
@@ -168,6 +191,9 @@ class Post_model extends CI_Emerald_Model
         }
         return $this->user;
     }
+/*
+не сильно критично, но я бы в new User_model генерил «NullUser», чтоб не было try catch (мне очень сильно кажется, что тут не очень правильное использование этой конструкции)
+*/
 
     function __construct($id = NULL)
     {
@@ -190,6 +216,24 @@ class Post_model extends CI_Emerald_Model
         App::get_ci()->s->from(self::CLASS_TABLE)->insert($data)->execute();
         return new static(App::get_ci()->s->get_insert_id());
     }
+
+/*
+App::get_ci()->s — непонятное имя у объекта
+чтоб инкапсулировать и удобнее было пользоваться, можно сделать функцию
+**
+ * @return Sparrow
+ *
+function db()
+{
+    return App::get_ci()->s;
+}
+будет тогда хотя бы
+db()->from(self::CLASS_TABLE)
+вместо
+App::get_ci()->s->from(self::CLASS_TABLE)
+
+(а если взять laravel, то вообще просто Post::where() :) )
+*/
 
     public function delete()
     {
@@ -233,6 +277,37 @@ class Post_model extends CI_Emerald_Model
         }
     }
 
+/*
+дефолтное значение кидает нас в exception?
+
+_preparation_* — дублирование кода
+
+я бы сделал с параметрами что-то вроде:
+
+private static function _preparation($data, $fields = [])
+{
+    foreach {
+        if (in_array('text', $fields)) 
+            $o->text = $d->get_text();
+        if (in_array('user', $fields)) 
+            $o->user = ...
+        ...
+    }
+}
+public static function preparation_main_page($data)
+{
+    return _preparation($data, ['id', 'img', 'text', ...])
+}
+
+или можно сразу фильтровать нужные поля при SELECT из базы, а в preparation уже обрабатывать все not null поля (жертва удобством кода для лучшей производительности)
+
+в любом случае (даже текущий вариант), я бы вынес этот код в отдельный класс
+
+еще можно сделать для этих целей универсальный способ, где будет что-то вроде
+$method_name = 'get_' . $param;
+$o->{$param} = $d->{$method_name}();
+*/
+
     /**
      * @param Post_model[] $data
      * @return stdClass[]
@@ -270,27 +345,30 @@ class Post_model extends CI_Emerald_Model
     {
         $o = new stdClass();
 
-
         $o->id = $data->get_id();
         $o->img = $data->get_img();
 
-
-//            var_dump($d->get_user()->object_beautify()); die();
-
         $o->user = User_model::preparation($data->get_user(),'main_page');
-        $o->coments = Comment_model::preparation($data->get_comments(),'full_info');
+        App::get_ci()->load->helper('build_tree');
+        $coments = Comment_model::preparation($data->get_comments(),'full_info');
+        $o->coments = build_tree($coments);
+//        $o->coments = Comment_model::preparation($data->get_comments(),'full_info'); - эту строку можно вернуть, чтоб выводились все комментарии в массиве, а не в дереве
 
-        $o->likes = rand(0, 25);
-
+        $o->likes = $data->get_likes();
 
         $o->time_created = $data->get_time_created();
         $o->time_updated = $data->get_time_updated();
 
-        $ret[] = $o;
-
-
         return $o;
     }
+
+/*
+Не понял, почему 2. задача со звездочкой именно "со звездочкой", поэтому сделал вывод дерева (без постраничника)
+Постраничник для комментов, например, можно реализовать так
+1. SELECT FROM comment WHERE assign_id = [id] LIMIT 21
+2.а. если 21 строки вернет, то делить на страницы, делая запросы WHERE parent_id = [comment_id], пока не наберется нужное число для страницы (в зависимости от логики разбиения на страницы)
+2.б. если меньше 21 строки, то выдавать сразу дерево полностью
+*/
 
 
 }
